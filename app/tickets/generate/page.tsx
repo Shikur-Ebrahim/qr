@@ -1,18 +1,12 @@
 "use client";
 
-/**
- * /tickets/generate page
- *
- * Lets organisers generate unique event tickets with QR codes.
- * Each ticket is:
- *   - Saved to Firestore (status = VALID) via the server API
- *   - Displayed with its QR code image
- *   - Downloadable / printable
- */
-
 import { useState } from "react";
 import Link from "next/link";
-import type { GenerateTicketResponse, GeneratedTicket } from "@/types/ticket";
+import { collection, doc, setDoc, query, where, getDocs, serverTimestamp } from "firebase/firestore";
+import { v4 as uuidv4 } from "uuid";
+import { db } from "@/lib/firebase";
+import { generateToken, buildQRContent, generateQRCodeDataUrl } from "@/lib/qr";
+import type { GeneratedTicket } from "@/types/ticket";
 
 export default function GeneratePage() {
   const [count, setCount] = useState(1);
@@ -26,22 +20,48 @@ export default function GeneratePage() {
     setTickets([]);
 
     try {
-      const res = await fetch("/api/tickets/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count }),
-      });
+      const ticketsCollection = collection(db, "tickets");
+      const generated: GeneratedTicket[] = [];
 
-      const data: GenerateTicketResponse = await res.json();
+      for (let i = 0; i < count; i++) {
+        const ticketId = uuidv4();
+        const qrToken = generateToken();
 
-      if (!data.success) {
-        setError(data.error ?? "Failed to generate tickets.");
-        return;
+        // Check token uniqueness
+        const q = query(ticketsCollection, where("qrToken", "==", qrToken));
+        const existing = await getDocs(q);
+
+        if (!existing.empty) {
+          throw new Error("Token collision detected. Please retry.");
+        }
+
+        const now = new Date().toISOString();
+        
+        // Save to Firestore directly from the client
+        await setDoc(doc(ticketsCollection, ticketId), {
+          ticketId,
+          qrToken,
+          status: "VALID",
+          createdAt: serverTimestamp(),
+          usedAt: null,
+        });
+
+        const qrContent = buildQRContent(qrToken);
+        const qrCodeDataUrl = await generateQRCodeDataUrl(qrContent);
+
+        generated.push({
+          ticketId,
+          qrToken,
+          status: "VALID",
+          createdAt: now,
+          qrCodeDataUrl,
+        });
       }
 
-      setTickets(data.tickets);
-    } catch {
-      setError("Network error. Please check your connection.");
+      setTickets(generated);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "An error occurred while generating tickets.");
     } finally {
       setLoading(false);
     }
@@ -106,7 +126,7 @@ export default function GeneratePage() {
             <button
               onClick={handleGenerate}
               disabled={loading}
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed active:scale-95 transition-all text-white font-bold px-8 py-3 rounded-xl text-base whitespace-nowrap"
+              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed active:scale-95 transition-all text-white font-bold px-8 py-3 rounded-xl text-base whitespace-nowrap flex items-center justify-center min-w-[200px]"
             >
               {loading ? (
                 <span className="flex items-center gap-2">
@@ -171,7 +191,7 @@ export default function GeneratePage() {
                   <div className="bg-slate-900 p-4 print:bg-gray-100">
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div>
-                        <p className="text-slate-400 text-xs uppercase tracking-widest mb-1">
+                        <p className="text-slate-400 text-xs uppercase tracking-widest mb-1 print:text-gray-500">
                           Ticket ID
                         </p>
                         <p className="text-white font-mono text-sm font-bold print:text-black">
@@ -184,20 +204,11 @@ export default function GeneratePage() {
                     </div>
 
                     <div className="mb-3">
-                      <p className="text-slate-400 text-xs uppercase tracking-widest mb-1">
+                      <p className="text-slate-400 text-xs uppercase tracking-widest mb-1 print:text-gray-500">
                         Token (first 12 chars)
                       </p>
-                      <p className="text-slate-300 font-mono text-xs print:text-gray-600">
+                      <p className="text-slate-300 font-mono text-xs print:text-gray-700">
                         {ticket.qrToken.slice(0, 12)}…
-                      </p>
-                    </div>
-
-                    <div className="mb-4">
-                      <p className="text-slate-400 text-xs uppercase tracking-widest mb-1">
-                        Created
-                      </p>
-                      <p className="text-slate-300 text-xs print:text-gray-600">
-                        {new Date(ticket.createdAt).toLocaleString()}
                       </p>
                     </div>
 

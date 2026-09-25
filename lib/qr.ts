@@ -1,34 +1,30 @@
 /**
- * QR code utilities (server-side only).
- *
- * - generateToken(): cryptographically secure random token
- * - generateQRCodeDataUrl(): returns a base-64 PNG data URL
+ * QR code utilities (browser-safe).
  */
 
-import { randomBytes } from "crypto";
 import QRCode from "qrcode";
 
 /**
  * Generates a cryptographically secure, URL-safe random token.
- * 32 bytes → 64 hex characters – impossible to brute-force.
+ * Uses the browser Crypto API instead of Node.js crypto.
  */
 export function generateToken(): string {
-  return randomBytes(32).toString("hex");
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 /**
  * Builds the URL that will be embedded in the QR code.
- * The scanner page reads the `token` query parameter from this URL.
  */
 export function buildQRContent(token: string): string {
   const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : "http://localhost:3000");
   return `${baseUrl}/scan?token=${token}`;
 }
 
 /**
  * Generates a QR code as a base-64 PNG data URL.
- * Safe to embed directly in <img src="..."> tags.
  */
 export async function generateQRCodeDataUrl(content: string): Promise<string> {
   return QRCode.toDataURL(content, {
