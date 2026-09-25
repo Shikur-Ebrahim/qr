@@ -1,4 +1,5 @@
 import Link from "next/link";
+import InstallPrompt from "@/components/InstallPrompt";
 
 export default function HomePage() {
   return (
@@ -20,19 +21,19 @@ export default function HomePage() {
       {/* Main Menu Cards (Mobile Optimized) */}
       <div className="w-full max-w-sm flex flex-col gap-5">
         
-        {/* Scanner Card */}
+        {/* Generator Card (MOVED TO TOP) */}
         <Link
-          href="/scan"
+          href="/tickets/generate"
           className="group relative overflow-hidden flex flex-col items-start bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 transition-all rounded-3xl p-6 shadow-[0_8px_30px_rgb(79,70,229,0.4)]"
         >
           <div className="flex items-center justify-between w-full mb-3">
-            <span className="text-4xl bg-white/20 p-3 rounded-2xl">📷</span>
+            <span className="text-4xl bg-white/20 p-3 rounded-2xl">🎟️</span>
             <span className="text-white/50 text-2xl group-hover:translate-x-1 transition-transform">→</span>
           </div>
           <div>
-            <h2 className="text-white font-bold text-xl mb-1">Scan Tickets</h2>
+            <h2 className="text-white font-bold text-xl mb-1">Generate</h2>
             <p className="text-indigo-200 text-sm font-medium">
-              Open camera to validate QR codes
+              Create and print new QR tickets
             </p>
           </div>
           
@@ -40,31 +41,27 @@ export default function HomePage() {
           <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500" />
         </Link>
 
-        {/* Generator Card */}
+        {/* Scanner Card (MOVED TO BOTTOM) */}
         <Link
-          href="/tickets/generate"
+          href="/scan"
           className="group relative overflow-hidden flex flex-col items-start bg-slate-800 hover:bg-slate-700 active:bg-slate-900 transition-all rounded-3xl p-6 shadow-xl border border-slate-700"
         >
           <div className="flex items-center justify-between w-full mb-3">
-            <span className="text-4xl bg-slate-700/50 p-3 rounded-2xl">🎟️</span>
+            <span className="text-4xl bg-slate-700/50 p-3 rounded-2xl">📷</span>
             <span className="text-slate-500 text-2xl group-hover:translate-x-1 transition-transform">→</span>
           </div>
           <div>
-            <h2 className="text-white font-bold text-xl mb-1">Generate</h2>
+            <h2 className="text-white font-bold text-xl mb-1">Scan Tickets</h2>
             <p className="text-slate-400 text-sm font-medium">
-              Create and print new QR tickets
+              Open camera to validate QR codes
             </p>
           </div>
         </Link>
 
       </div>
 
-      {/* PWA Install Hint */}
-      <div className="mt-12 text-center">
-        <p className="text-slate-500 text-xs font-medium px-4 py-2 bg-slate-900 rounded-full border border-slate-800">
-          📱 Add to Home Screen for the best experience
-        </p>
-      </div>
+      {/* Native Install Prompt Button (Only appears in Chrome/Android when not installed) */}
+      <InstallPrompt />
 
     </main>
   );
