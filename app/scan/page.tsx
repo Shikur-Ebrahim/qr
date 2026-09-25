@@ -62,24 +62,20 @@ export default function ScanPage() {
 
         const ticketDoc = snapshot.docs[0]!;
         const ticketRef = doc(db, "tickets", ticketDoc.id);
-        let outcome: "ACCEPTED" | "ALREADY_USED" = "ALREADY_USED";
-
-        await runTransaction(db, async (transaction) => {
+        const outcome = await runTransaction(db, async (transaction) => {
           const freshSnap = await transaction.get(ticketRef);
           if (!freshSnap.exists()) {
-            outcome = "ALREADY_USED";
-            return;
+            return "ALREADY_USED";
           }
           const status = freshSnap.data().status as string;
           if (status === "USED") {
-            outcome = "ALREADY_USED";
-            return;
+            return "ALREADY_USED";
           }
           transaction.update(ticketRef, {
             status: "USED",
             usedAt: serverTimestamp(),
           });
-          outcome = "ACCEPTED";
+          return "ACCEPTED";
         });
 
         if (outcome === "ACCEPTED") {
