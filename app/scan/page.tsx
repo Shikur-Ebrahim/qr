@@ -18,6 +18,7 @@ const QRScanner = dynamic(() => import("@/components/QRScanner"), {
 });
 
 type PageState = "scanning" | "validating" | "result";
+type ScanMode = "redeem" | "check";
 
 function extractToken(raw: string): string {
   try {
@@ -32,6 +33,7 @@ function extractToken(raw: string): string {
 
 export default function ScanPage() {
   const [pageState, setPageState] = useState<PageState>("scanning");
+  const [scanMode, setScanMode] = useState<ScanMode>("redeem");
   const [result, setResult] = useState<ValidateTicketResponse | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const lastScannedRef = useRef<string>("");
@@ -62,28 +64,39 @@ export default function ScanPage() {
 
         const ticketDoc = snapshot.docs[0]!;
         const ticketRef = doc(db, "tickets", ticketDoc.id);
-        const outcome = await runTransaction(db, async (transaction) => {
-          const freshSnap = await transaction.get(ticketRef);
-          if (!freshSnap.exists()) {
-            return "ALREADY_USED";
-          }
-          const status = freshSnap.data().status as string;
-          if (status === "USED") {
-            return "ALREADY_USED";
-          }
-          transaction.update(ticketRef, {
-            status: "USED",
-            usedAt: serverTimestamp(),
-          });
-          return "ACCEPTED";
-        });
 
-        if (outcome === "ACCEPTED") {
-          setResult({ success: true, status: "ACCEPTED", message: "Ticket accepted", ticketId: ticketDoc.id });
+        if (scanMode === "check") {
+          // Check-only mode: Do NOT mutate the ticket status.
+          const status = ticketDoc.data().status as string;
+          if (status === "VALID") {
+            setResult({ success: true, status: "VALID_CHECK_ONLY", message: "Ticket is valid (Not redeemed)" });
+          } else {
+            setResult({ success: false, status: "ALREADY_USED", message: "Ticket has already been used" });
+          }
         } else {
-          setResult({ success: false, status: "ALREADY_USED", message: "This ticket has already been used", ticketId: ticketDoc.id });
+          // Redeem mode: Run transaction to mark as used
+          const outcome = await runTransaction(db, async (transaction) => {
+            const freshSnap = await transaction.get(ticketRef);
+            if (!freshSnap.exists()) {
+              return "ALREADY_USED";
+            }
+            const status = freshSnap.data().status as string;
+            if (status === "USED") {
+              return "ALREADY_USED";
+            }
+            transaction.update(ticketRef, {
+              status: "USED",
+              usedAt: serverTimestamp(),
+            });
+            return "ACCEPTED";
+          });
+
+          if (outcome === "ACCEPTED") {
+            setResult({ success: true, status: "ACCEPTED", message: "Ticket accepted", ticketId: ticketDoc.id });
+          } else {
+            setResult({ success: false, status: "ALREADY_USED", message: "This ticket has already been used", ticketId: ticketDoc.id });
+          }
         }
-        
       } catch (err: any) {
         console.error(err);
         setResult({
@@ -96,7 +109,7 @@ export default function ScanPage() {
         setIsValidating(false);
       }
     },
-    [isValidating, pageState]
+    [isValidating, pageState, scanMode]
   );
 
   const handleReset = useCallback(() => {
@@ -112,7 +125,7 @@ export default function ScanPage() {
           ‹ Home
         </Link>
         <h1 className="text-white font-bold text-base tracking-wide">
-          🎫 EVENT TICKET QR SCANNER
+          🎫 EVENT SCANNER
         </h1>
         <div className="w-16" />
       </header>
@@ -123,22 +136,51 @@ export default function ScanPage() {
         {pageState === "validating" && (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 w-full">
             <div className="w-16 h-16 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-            <p className="text-white font-semibold text-xl">Validating…</p>
-            <p className="text-slate-400 text-sm">Checking with server, please wait.</p>
+            <p className="text-white font-semibold text-xl">Checking Ticket…</p>
           </div>
         )}
 
         {pageState === "scanning" && (
           <>
-            <div className="w-full">
-              <p className="text-slate-400 text-sm text-center mb-4">Point the camera at a ticket QR code</p>
-              <QRScanner onScan={handleScan} active={pageState === "scanning"} />
+            {/* Mode Toggle Switch */}
+            <div className="flex bg-slate-900 rounded-xl p-1 mb-2 w-full border border-slate-800 shadow-lg">
+              <button
+                onClick={() => setScanMode("redeem")}
+                className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
+                  scanMode === "redeem" 
+                    ? "bg-red-600 text-white shadow-md shadow-red-900/50 scale-100" 
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 scale-95"
+                }`}
+              >
+                <span>🔴</span> Redeem
+              </button>
+              <button
+                onClick={() => setScanMode("check")}
+                className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
+                  scanMode === "check" 
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-900/50 scale-100" 
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 scale-95"
+                }`}
+              >
+                <span>🔍</span> Check Only
+              </button>
             </div>
-            <div className="flex flex-col items-center gap-2 text-center">
-              <p className="text-slate-500 text-xs">Scanner is live — hold a QR code steady</p>
-              <div className="flex items-center gap-2 text-xs text-slate-600">
-                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block" />
-                Scanning active
+
+            <div className="w-full">
+              <p className="text-slate-400 text-sm text-center mb-4">
+                {scanMode === "redeem" 
+                  ? "Scanned tickets will be MARKED AS USED." 
+                  : "Check mode: Tickets will NOT be marked as used."}
+              </p>
+              <div className={`rounded-3xl overflow-hidden border-4 transition-colors duration-300 ${scanMode === "redeem" ? "border-red-900/30" : "border-blue-900/30"}`}>
+                <QRScanner onScan={handleScan} active={pageState === "scanning"} />
+              </div>
+            </div>
+            
+            <div className="flex flex-col items-center gap-2 text-center mt-2">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                <span className={`w-2 h-2 rounded-full animate-pulse inline-block ${scanMode === "redeem" ? "bg-red-500" : "bg-blue-500"}`} />
+                {scanMode === "redeem" ? "Ready to Redeem" : "Ready to Check"}
               </div>
             </div>
           </>

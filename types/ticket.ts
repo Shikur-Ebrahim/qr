@@ -36,7 +36,7 @@ export interface GeneratedTicket {
   qrCodeDataUrl: string;
 }
 
-export type ValidationOutcome = "ACCEPTED" | "ALREADY_USED" | "INVALID";
+export type ValidationOutcome = "ACCEPTED" | "ALREADY_USED" | "INVALID" | "VALID_CHECK_ONLY";
 
 export interface ValidateTicketRequest {
   qrToken: string;
