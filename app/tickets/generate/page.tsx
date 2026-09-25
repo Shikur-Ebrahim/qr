@@ -124,32 +124,20 @@ export default function GeneratePage() {
           )}
         </div>
 
-        {/* Info banner */}
+        {/* Info banner - Only show if empty */}
         {tickets.length === 0 && !loading && !error && (
           <div className="text-center py-16 text-slate-600">
             <div className="text-5xl mb-4">🎫</div>
             <p className="text-slate-500 text-base">
-              Click the button above to generate a ticket.
-            </p>
-            <p className="text-slate-600 text-sm mt-1">
-              Each generated ticket gets a unique QR code and is saved instantly.
+              Tap the button above to generate a ticket.
             </p>
           </div>
         )}
 
         {/* Tickets grid */}
         {tickets.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-white font-semibold">
-                {tickets.length} ticket{tickets.length > 1 ? "s" : ""} generated this session
-              </h2>
-              <span className="text-green-400 text-sm font-medium">
-                ✅ Saved to Firestore
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 print:grid-cols-3">
+          <div className="mt-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 print:grid-cols-3">
               {tickets.map((ticket) => (
                 <div
                   key={ticket.ticketId}

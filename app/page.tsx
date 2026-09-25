@@ -2,66 +2,70 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-4">
-      {/* Header */}
-      <div className="text-center mb-12">
-        <div className="text-6xl mb-4">🎫</div>
-        <h1 className="text-4xl font-black tracking-tight text-white mb-3">
-          EVENT TICKET
-          <br />
-          <span className="text-indigo-400">QR SYSTEM</span>
+    <main className="min-h-[100dvh] bg-slate-950 flex flex-col items-center justify-center px-6 safe-area-padding">
+      
+      {/* App Icon / Logo Area */}
+      <div className="flex flex-col items-center justify-center mb-10 w-full">
+        <div className="w-24 h-24 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl shadow-2xl shadow-indigo-500/40 flex items-center justify-center mb-6 transform transition-transform hover:scale-105 active:scale-95">
+          <span className="text-5xl">🎫</span>
+        </div>
+        <h1 className="text-3xl font-black tracking-tight text-white mb-2 text-center">
+          QR Tickets
         </h1>
-        <p className="text-slate-400 text-base max-w-sm mx-auto">
-          Generate unique one-time QR codes for event tickets and validate them
-          with atomic server-side security.
+        <p className="text-slate-400 text-sm text-center max-w-[260px]">
+          Generate and scan secure one-time event tickets
         </p>
       </div>
 
-      {/* Action Cards */}
-      <div className="w-full max-w-sm flex flex-col gap-4">
-        {/* Scanner */}
+      {/* Main Menu Cards (Mobile Optimized) */}
+      <div className="w-full max-w-sm flex flex-col gap-5">
+        
+        {/* Scanner Card */}
         <Link
           href="/scan"
-          className="group flex items-center gap-5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all rounded-2xl p-6 shadow-xl shadow-indigo-900/40"
+          className="group relative overflow-hidden flex flex-col items-start bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 transition-all rounded-3xl p-6 shadow-[0_8px_30px_rgb(79,70,229,0.4)]"
         >
-          <span className="text-4xl">📷</span>
+          <div className="flex items-center justify-between w-full mb-3">
+            <span className="text-4xl bg-white/20 p-3 rounded-2xl">📷</span>
+            <span className="text-white/50 text-2xl group-hover:translate-x-1 transition-transform">→</span>
+          </div>
           <div>
-            <p className="text-white font-bold text-xl leading-tight">
-              Scan Tickets
-            </p>
-            <p className="text-indigo-200 text-sm mt-0.5">
+            <h2 className="text-white font-bold text-xl mb-1">Scan Tickets</h2>
+            <p className="text-indigo-200 text-sm font-medium">
               Open camera to validate QR codes
             </p>
           </div>
-          <span className="ml-auto text-indigo-300 text-2xl">›</span>
+          
+          {/* Decorative background shape */}
+          <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500" />
         </Link>
 
-        {/* Generator */}
+        {/* Generator Card */}
         <Link
           href="/tickets/generate"
-          className="group flex items-center gap-5 bg-slate-800 hover:bg-slate-700 active:scale-95 transition-all rounded-2xl p-6 shadow-xl shadow-slate-900/40"
+          className="group relative overflow-hidden flex flex-col items-start bg-slate-800 hover:bg-slate-700 active:bg-slate-900 transition-all rounded-3xl p-6 shadow-xl border border-slate-700"
         >
-          <span className="text-4xl">🎟️</span>
+          <div className="flex items-center justify-between w-full mb-3">
+            <span className="text-4xl bg-slate-700/50 p-3 rounded-2xl">🎟️</span>
+            <span className="text-slate-500 text-2xl group-hover:translate-x-1 transition-transform">→</span>
+          </div>
           <div>
-            <p className="text-white font-bold text-xl leading-tight">
-              Generate Tickets
-            </p>
-            <p className="text-slate-400 text-sm mt-0.5">
-              Create unique QR tickets for your event
+            <h2 className="text-white font-bold text-xl mb-1">Generate</h2>
+            <p className="text-slate-400 text-sm font-medium">
+              Create and print new QR tickets
             </p>
           </div>
-          <span className="ml-auto text-slate-400 text-2xl">›</span>
         </Link>
+
       </div>
 
-      {/* Security note */}
-      <div className="mt-10 text-center max-w-xs">
-        <p className="text-slate-600 text-xs leading-relaxed">
-          🔒 Each QR code is valid exactly one time. Validation is enforced
-          server-side with atomic Firestore transactions — the frontend can never
-          bypass it.
+      {/* PWA Install Hint */}
+      <div className="mt-12 text-center">
+        <p className="text-slate-500 text-xs font-medium px-4 py-2 bg-slate-900 rounded-full border border-slate-800">
+          📱 Add to Home Screen for the best experience
         </p>
       </div>
+
     </main>
   );
 }
