@@ -52,12 +52,7 @@ export default function TicketResult({ result, onReset }: Props) {
             : "This QR code is not valid."}
       </p>
 
-      {/* Ticket ID badge (if available) */}
-      {result.ticketId && (
-        <p className="text-xs text-gray-400 font-mono mb-6 bg-white px-3 py-1 rounded-full border border-gray-200">
-          ID: {result.ticketId}
-        </p>
-      )}
+
 
       {/* Next ticket button */}
       <button
