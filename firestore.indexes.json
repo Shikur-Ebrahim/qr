@@ -1,0 +1,12 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "tickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "qrToken", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
