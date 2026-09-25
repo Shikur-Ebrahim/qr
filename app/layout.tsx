@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 import PWARegister from "@/components/PWARegister";
+import AuthGuard from "@/components/AuthGuard";
 
 export const metadata: Metadata = {
   title: "QR Tickets",
@@ -35,7 +36,9 @@ export default function RootLayout({
       </head>
       <body className="bg-slate-950 min-h-screen text-white antialiased">
         <PWARegister />
-        {children}
+        <AuthGuard>
+          {children}
+        </AuthGuard>
       </body>
     </html>
   );
