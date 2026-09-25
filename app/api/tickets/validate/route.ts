@@ -1,21 +1,6 @@
-/**
- * POST /api/tickets/validate
- *
- * Atomically validates a QR token using a Firestore transaction:
- *
- * 1. Look up the ticket by qrToken field
- * 2. If not found → INVALID
- * 3. If status === "USED" → ALREADY_USED
- * 4. If status === "VALID" → mark as USED (atomic) → ACCEPTED
- *
- * Two simultaneous scans of the same token are safe because Firestore
- * transactions use optimistic concurrency: only ONE will commit;
- * the other will be retried and then fail with ALREADY_USED.
- */
-
 import { NextRequest, NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore";
-import { getAdminFirestore } from "@/lib/firebase-admin";
+import { collection, query, where, getDocs, runTransaction, serverTimestamp, doc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import type {
   ValidateTicketRequest,
   ValidateTicketResponse,
@@ -30,11 +15,7 @@ export async function POST(request: NextRequest) {
       body = await request.json();
     } catch {
       return NextResponse.json(
-        {
-          success: false,
-          status: "INVALID",
-          message: "Malformed request body.",
-        } satisfies ValidateTicketResponse,
+        { success: false, status: "INVALID", message: "Malformed request body." } satisfies ValidateTicketResponse,
         { status: 400 }
       );
     }
@@ -43,60 +24,44 @@ export async function POST(request: NextRequest) {
 
     if (!qrToken || typeof qrToken !== "string" || qrToken.length === 0) {
       return NextResponse.json(
-        {
-          success: false,
-          status: "INVALID",
-          message: "Invalid ticket",
-        } satisfies ValidateTicketResponse,
+        { success: false, status: "INVALID", message: "Invalid ticket" } satisfies ValidateTicketResponse,
         { status: 400 }
       );
     }
 
-    const db = getAdminFirestore();
-    const ticketsCollection = db.collection("tickets");
-
-    // ── Find the ticket document by qrToken ──────────────────────────────────
-    const snapshot = await ticketsCollection
-      .where("qrToken", "==", qrToken)
-      .limit(1)
-      .get();
+    const ticketsCollection = collection(db, "tickets");
+    const q = query(ticketsCollection, where("qrToken", "==", qrToken));
+    const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
       return NextResponse.json(
-        {
-          success: false,
-          status: "INVALID",
-          message: "Invalid ticket",
-        } satisfies ValidateTicketResponse,
+        { success: false, status: "INVALID", message: "Invalid ticket" } satisfies ValidateTicketResponse,
         { status: 404 }
       );
     }
 
     const ticketDoc = snapshot.docs[0]!;
-    const ticketRef = ticketDoc.ref;
-
-    // ── Atomic transaction: check-and-update ─────────────────────────────────
+    const ticketRef = doc(db, "tickets", ticketDoc.id);
     let outcome: "ACCEPTED" | "ALREADY_USED";
 
-    await db.runTransaction(async (transaction) => {
+    await runTransaction(db, async (transaction) => {
       const freshSnap = await transaction.get(ticketRef);
 
-      if (!freshSnap.exists) {
-        outcome = "ALREADY_USED"; // defensive; shouldn't happen
+      if (!freshSnap.exists()) {
+        outcome = "ALREADY_USED"; 
         return;
       }
 
-      const status = freshSnap.data()?.status as string;
+      const status = freshSnap.data().status as string;
 
       if (status === "USED") {
         outcome = "ALREADY_USED";
         return;
       }
 
-      // status === "VALID" – mark as used inside the transaction
       transaction.update(ticketRef, {
         status: "USED",
-        usedAt: FieldValue.serverTimestamp(),
+        usedAt: serverTimestamp(),
       });
       outcome = "ACCEPTED";
     });
@@ -113,7 +78,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ALREADY_USED
     return NextResponse.json(
       {
         success: false,
@@ -125,13 +89,8 @@ export async function POST(request: NextRequest) {
     );
   } catch (error: unknown) {
     console.error("[/api/tickets/validate] Error:", error);
-
     return NextResponse.json(
-      {
-        success: false,
-        status: "INVALID",
-        message: "An internal server error occurred. Please try again.",
-      } satisfies ValidateTicketResponse,
+      { success: false, status: "INVALID", message: "An internal server error occurred." } satisfies ValidateTicketResponse,
       { status: 500 }
     );
   }

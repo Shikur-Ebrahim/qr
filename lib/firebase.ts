@@ -1,11 +1,5 @@
-/**
- * Firebase Client SDK (browser-safe).
- *
- * Only non-sensitive, public configuration is used here.
- * The Admin SDK is kept entirely server-side in lib/firebase-admin.ts.
- */
-
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
+import { getFirestore, Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
@@ -16,12 +10,15 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
-let clientApp: FirebaseApp;
+let app: FirebaseApp;
+let db: Firestore;
 
-export function getClientApp(): FirebaseApp {
-  if (getApps().length > 0) {
-    return getApps()[0]!;
-  }
-  clientApp = initializeApp(firebaseConfig);
-  return clientApp;
+if (getApps().length === 0) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApps()[0];
 }
+
+db = getFirestore(app);
+
+export { app, db };

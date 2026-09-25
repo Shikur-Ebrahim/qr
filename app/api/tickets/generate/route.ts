@@ -1,18 +1,7 @@
-/**
- * POST /api/tickets/generate
- *
- * Generates one or more unique event tickets:
- * 1. Creates a cryptographically secure random QR token
- * 2. Persists the ticket in Firestore with status = VALID
- * 3. Returns the QR code as a base-64 PNG data URL
- *
- * This route runs exclusively on the server (Firebase Admin SDK).
- */
-
 import { NextRequest, NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore";
+import { collection, doc, setDoc, query, where, getDocs, serverTimestamp } from "firebase/firestore";
 import { v4 as uuidv4 } from "uuid";
-import { getAdminFirestore } from "@/lib/firebase-admin";
+import { db } from "@/lib/firebase";
 import {
   generateToken,
   buildQRContent,
@@ -32,28 +21,22 @@ export async function POST(request: NextRequest) {
     try {
       body = await request.json();
     } catch {
-      // empty body is fine; defaults applied below
+      // empty body is fine
     }
 
     const count = Math.min(Math.max(Number(body.count) || 1, 1), 20);
-
-    const db = getAdminFirestore();
-    const ticketsCollection = db.collection("tickets");
-
+    const ticketsCollection = collection(db, "tickets");
     const generatedTickets: GeneratedTicket[] = [];
 
     for (let i = 0; i < count; i++) {
       const ticketId = uuidv4();
       const qrToken = generateToken();
 
-      // Guarantee token uniqueness before writing
-      const existing = await ticketsCollection
-        .where("qrToken", "==", qrToken)
-        .limit(1)
-        .get();
+      // Check token uniqueness
+      const q = query(ticketsCollection, where("qrToken", "==", qrToken));
+      const existing = await getDocs(q);
 
       if (!existing.empty) {
-        // Astronomically unlikely with 256-bit entropy, but handle it gracefully
         return NextResponse.json(
           {
             success: false,
@@ -65,12 +48,11 @@ export async function POST(request: NextRequest) {
       }
 
       const now = new Date().toISOString();
-
-      await ticketsCollection.doc(ticketId).set({
+      await setDoc(doc(ticketsCollection, ticketId), {
         ticketId,
         qrToken,
         status: "VALID",
-        createdAt: FieldValue.serverTimestamp(),
+        createdAt: serverTimestamp(),
         usedAt: null,
       });
 
@@ -95,8 +77,6 @@ export async function POST(request: NextRequest) {
     );
   } catch (error: unknown) {
     console.error("[/api/tickets/generate] Error:", error);
-
-    // Never leak internal details to the client
     return NextResponse.json(
       {
         success: false,
