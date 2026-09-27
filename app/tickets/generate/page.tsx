@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { collection, doc, setDoc, query, where, getDocs, serverTimestamp } from "firebase/firestore";
+import { collection, doc, writeBatch, serverTimestamp } from "firebase/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "@/lib/firebase";
 import { generateToken, buildQRContent, generateQRCodeDataUrl } from "@/lib/qr";
@@ -10,57 +10,68 @@ import type { GeneratedTicket } from "@/types/ticket";
 
 export default function GeneratePage() {
   const [loading, setLoading] = useState(false);
+  const [count, setCount] = useState(1);
   const [tickets, setTickets] = useState<GeneratedTicket[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string>("");
 
   const handleGenerate = async () => {
+    if (count < 1 || count > 200) {
+      setError("Please select a number between 1 and 200.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
+    setProgress("Initializing...");
 
     try {
       const ticketsCollection = collection(db, "tickets");
-      
-      const ticketId = uuidv4();
-      const qrToken = generateToken();
+      const generated: GeneratedTicket[] = [];
+      const now = new Date().toISOString();
 
-      // Check token uniqueness
-      const q = query(ticketsCollection, where("qrToken", "==", qrToken));
-      const existing = await getDocs(q);
+      // Firebase batches support up to 500 operations
+      const batch = writeBatch(db);
 
-      if (!existing.empty) {
-        throw new Error("Token collision detected. Please retry.");
+      for (let i = 0; i < count; i++) {
+        setProgress(`Generating ${i + 1} of ${count}...`);
+        
+        const ticketId = uuidv4();
+        const qrToken = generateToken();
+
+        const ticketRef = doc(ticketsCollection, ticketId);
+        batch.set(ticketRef, {
+          ticketId,
+          qrToken,
+          status: "VALID",
+          createdAt: serverTimestamp(),
+          usedAt: null,
+        });
+
+        const qrContent = buildQRContent(qrToken);
+        const qrCodeDataUrl = await generateQRCodeDataUrl(qrContent);
+
+        generated.push({
+          ticketId,
+          qrToken,
+          status: "VALID",
+          createdAt: now,
+          qrCodeDataUrl,
+        });
       }
 
-      const now = new Date().toISOString();
-      
-      // Save to Firestore directly from the client
-      await setDoc(doc(ticketsCollection, ticketId), {
-        ticketId,
-        qrToken,
-        status: "VALID",
-        createdAt: serverTimestamp(),
-        usedAt: null,
-      });
+      setProgress("Saving to database...");
+      await batch.commit();
 
-      const qrContent = buildQRContent(qrToken);
-      const qrCodeDataUrl = await generateQRCodeDataUrl(qrContent);
-
-      const newTicket: GeneratedTicket = {
-        ticketId,
-        qrToken,
-        status: "VALID",
-        createdAt: now,
-        qrCodeDataUrl,
-      };
-
-      // Add the new ticket to the TOP of the list
-      setTickets((prevTickets) => [newTicket, ...prevTickets]);
+      // Add the new tickets to the TOP of the list
+      setTickets((prevTickets) => [...generated, ...prevTickets]);
 
     } catch (err: any) {
       console.error(err);
       setError(err.message || "An error occurred while generating tickets.");
     } finally {
       setLoading(false);
+      setProgress("");
     }
   };
 
@@ -98,9 +109,27 @@ export default function GeneratePage() {
       <main className="max-w-4xl mx-auto px-4 py-8">
         {/* Generator controls */}
         <div className="bg-slate-900 rounded-2xl p-6 mb-8 border border-slate-800 text-center">
-          <h2 className="text-white font-semibold text-xl mb-6">
-            Create a New Ticket
+          <h2 className="text-white font-semibold text-xl mb-4">
+            Create New Tickets
           </h2>
+
+          <div className="mb-6 flex flex-col items-center">
+            <label className="block text-slate-400 text-sm mb-2 font-medium">
+              How many tickets to generate? (1 - 200)
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="200"
+              value={count}
+              onChange={(e) => {
+                const val = parseInt(e.target.value);
+                setCount(isNaN(val) ? 1 : Math.min(200, Math.max(1, val)));
+              }}
+              disabled={loading}
+              className="w-full max-w-[200px] bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-center text-xl font-bold focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+            />
+          </div>
 
           <button
             onClick={handleGenerate}
@@ -110,10 +139,10 @@ export default function GeneratePage() {
             {loading ? (
               <span className="flex items-center gap-3">
                 <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Generating...
+                {progress || "Generating..."}
               </span>
             ) : (
-              "➕ Generate Ticket"
+              `➕ Generate ${count} Ticket${count > 1 ? "s" : ""}`
             )}
           </button>
 
@@ -129,7 +158,7 @@ export default function GeneratePage() {
           <div className="text-center py-16 text-slate-600">
             <div className="text-5xl mb-4">🎫</div>
             <p className="text-slate-500 text-base">
-              Tap the button above to generate a ticket.
+              Select the amount and tap generate.
             </p>
           </div>
         )}
@@ -144,17 +173,18 @@ export default function GeneratePage() {
                   className="bg-white rounded-2xl overflow-hidden shadow-xl print:shadow-none print:border print:border-gray-200"
                 >
                   {/* QR Code */}
-                  <div className="bg-white p-4 flex justify-center">
+                  <div className="bg-white p-4 flex justify-center break-inside-avoid">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={ticket.qrCodeDataUrl}
                       alt={`QR Code for ticket ${ticket.ticketId}`}
                       className="w-48 h-48 object-contain"
+                      loading="lazy"
                     />
                   </div>
 
                   {/* Ticket info */}
-                  <div className="bg-slate-900 p-4 print:bg-gray-100">
+                  <div className="bg-slate-900 p-4 print:bg-gray-100 break-inside-avoid">
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div>
                         <p className="text-slate-400 text-xs uppercase tracking-widest mb-1 print:text-gray-500">
